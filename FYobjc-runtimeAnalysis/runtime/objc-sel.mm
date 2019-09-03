@@ -143,6 +143,7 @@ static SEL __sel_registerName(const char *name, bool shouldLock, bool copy)
 
     if (!name) return (SEL)0;
 
+    //根据名字来获取对应 SEL 选择子 
     result = search_builtins(name);
     if (result) return result;
     

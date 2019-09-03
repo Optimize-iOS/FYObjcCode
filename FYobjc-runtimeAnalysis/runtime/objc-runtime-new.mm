@@ -700,6 +700,8 @@ fixupMethodList(method_list_t *mlist, bool bundleCopy, bool sort)
     }
 
     // Sort by selector address.
+    // 根据 SEL 来进行排序
+    //
     if (sort) {
         method_t::SortBySELAddress sorter;
         std::stable_sort(mlist->begin(), mlist->end(), sorter);
@@ -776,6 +778,7 @@ attachCategories(Class cls, category_list *cats, bool flush_caches)
         malloc(cats->count * sizeof(*protolists));
 
     // Count backwards through cats to get newest categories first
+    // 遍历分类中 方法、属性和协议列表
     int mcount = 0;
     int propcount = 0;
     int protocount = 0;
@@ -838,17 +841,20 @@ static void methodizeClass(Class cls)
     }
 
     // Install methods and properties that the class implements itself.
+    //当前类的实现方法 IMP List
     method_list_t *list = ro->baseMethods();
     if (list) {
         prepareMethodLists(cls, &list, 1, YES, isBundleClass(cls));
         rw->methods.attachLists(&list, 1);
     }
 
+    //添加当前 property 属性
     property_list_t *proplist = ro->baseProperties;
     if (proplist) {
         rw->properties.attachLists(&proplist, 1);
     }
 
+    //添加当前 protocol 协议
     protocol_list_t *protolist = ro->baseProtocols;
     if (protolist) {
         rw->protocols.attachLists(&protolist, 1);
@@ -1942,8 +1948,8 @@ static Class realizeClass(Class cls)
 #endif
 
     // Update superclass and metaclass in case of remapping
-    cls->superclass = supercls;
-    cls->initClassIsa(metacls);
+    cls->superclass = supercls; //superclass -> super 类
+    cls->initClassIsa(metacls); //isa -> metal 类
 
     // Reconcile instance variable offsets / layout.
     // This may reallocate class_ro_t, updating our ro variable.
@@ -2172,7 +2178,7 @@ map_images(unsigned count, const char * const paths[],
 extern bool hasLoadMethods(const headerType *mhdr);
 extern void prepare_load_methods(const headerType *mhdr);
 
-//TODO 
+//Step 1 +load
 void
 load_images(const char *path __unused, const struct mach_header *mh)
 {
@@ -2840,7 +2846,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 * superclasses in other images, and any categories in this image.
 **********************************************************************/
 // Recursively schedule +load for cls and any un-+load-ed superclasses.
-// cls must already be connected.
+// cls must already bexian connected.
 static void schedule_class_load(Class cls)
 {
     if (!cls) return;
@@ -2848,14 +2854,17 @@ static void schedule_class_load(Class cls)
 
     if (cls->data()->flags & RW_LOADED) return;
 
-    // Ensure superclass-first ordering
+    // Ensure superclass-first ordering 添加当前类父类 | 保证在 load 先执行父类中实现 load
     schedule_class_load(cls->superclass);
 
+    //保存重写 load 的类
     add_class_to_loadable_list(cls);
-    cls->setInfo(RW_LOADED); 
+    //标记当前类重写 load
+    cls->setInfo(RW_LOADED);
 }
 
 // Quick scan for +load methods that doesn't take a lock.
+//Step 2 +load
 bool hasLoadMethods(const headerType *mhdr)
 {
     size_t count;
@@ -2864,22 +2873,26 @@ bool hasLoadMethods(const headerType *mhdr)
     return false;
 }
 
+//Step 3 +load
 void prepare_load_methods(const headerType *mhdr)
 {
     size_t count, i;
 
     runtimeLock.assertLocked();
 
+    //(1)遍历先记录 类|父类 中重写 load 类
+    //(2)在遍历编译后 分类 中重写 load 分类
     classref_t *classlist = 
-        _getObjc2NonlazyClassList(mhdr, &count);
+        _getObjc2NonlazyClassList(mhdr, &count);//获取所有类的列表
     for (i = 0; i < count; i++) {
+        //
         schedule_class_load(remapClass(classlist[i]));
     }
 
     category_t **categorylist = _getObjc2NonlazyCategoryList(mhdr, &count);
     for (i = 0; i < count; i++) {
         category_t *cat = categorylist[i];
-        Class cls = remapClass(cat->cls);
+        Class cls = remapClass(cat->cls);//反射
         if (!cls) continue;  // category for ignored weak-linked class
         realizeClass(cls);
         assert(cls->ISA()->isRealized());

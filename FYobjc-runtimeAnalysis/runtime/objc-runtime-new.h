@@ -725,8 +725,11 @@ class list_array_tt {
             uint32_t oldCount = array()->count;
             uint32_t newCount = oldCount + addedCount;
             setArray((array_t *)realloc(array(), array_t::byteSize(newCount)));
+            
             array()->count = newCount;
-            memmove(array()->lists + addedCount, array()->lists, 
+            
+            //把新加的 list copy 到前面 
+            memmove(array()->lists + addedCount, array()->lists,
                     oldCount * sizeof(array()->lists[0]));
             memcpy(array()->lists, addedLists, 
                    addedCount * sizeof(array()->lists[0]));
@@ -740,8 +743,10 @@ class list_array_tt {
             List* oldList = list;
             uint32_t oldCount = oldList ? 1 : 0;
             uint32_t newCount = oldCount + addedCount;
+            
             setArray((array_t *)malloc(array_t::byteSize(newCount)));
             array()->count = newCount;
+            
             if (oldList) array()->lists[addedCount] = oldList;
             memcpy(array()->lists, addedLists, 
                    addedCount * sizeof(array()->lists[0]));
@@ -1378,7 +1383,7 @@ struct swift_class_t : objc_class {
 };
 
 
-struct category_t {
+struct category_t {     //分类基本数据结构 
     const char *name;
     classref_t cls;
     struct method_list_t *instanceMethods;

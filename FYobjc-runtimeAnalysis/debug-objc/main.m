@@ -17,9 +17,7 @@ int main(int argc, const char * argv[]) {
 
 
 @interface FYObject : NSObject
-
 @end
-
 
 @implementation FYObject
 

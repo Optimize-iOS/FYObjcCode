@@ -65,6 +65,7 @@ void add_class_to_loadable_list(Class cls)
 
     loadMethodLock.assertLocked();
 
+    //获取 load
     method = cls->getLoadMethod();
     if (!method) return;  // Don't bother if cls has no +load method
     
@@ -81,6 +82,7 @@ void add_class_to_loadable_list(Class cls)
                               sizeof(struct loadable_class));
     }
     
+    //添加 load cls && method 
     loadable_classes[loadable_classes_used].cls = cls;
     loadable_classes[loadable_classes_used].method = method;
     loadable_classes_used++;
@@ -180,6 +182,7 @@ void remove_category_from_loadable_list(Category cat)
 * If new classes become loadable, +load is NOT called for them.
 *
 * Called only by call_load_methods().
+*
 **********************************************************************/
 static void call_class_loads(void)
 {
@@ -201,6 +204,7 @@ static void call_class_loads(void)
         if (PrintLoading) {
             _objc_inform("LOAD: +[%s load]\n", cls->nameForLogging());
         }
+        //执行 +load in 类中
         (*load_method)(cls, SEL_load);
     }
     
@@ -220,6 +224,7 @@ static void call_class_loads(void)
 * Return FALSE if no new categories became loadable.
 *
 * Called only by call_load_methods().
+* 获取重写 +load 分类  --> run
 **********************************************************************/
 static bool call_category_loads(void)
 {
@@ -227,6 +232,7 @@ static bool call_category_loads(void)
     bool new_categories_added = NO;
     
     // Detach current loadable list.
+    // 获取重写 +load
     struct loadable_category *cats = loadable_categories;
     int used = loadable_categories_used;
     int allocated = loadable_categories_allocated;
@@ -248,12 +254,14 @@ static bool call_category_loads(void)
                              cls->nameForLogging(), 
                              _category_getName(cat));
             }
+            //执行 done
             (*load_method)(cls, SEL_load);
             cats[i].cat = nil;
         }
     }
 
     // Compact detached list (order-preserving)
+    //把加载过分类 移除
     shift = 0;
     for (i = 0; i < used; i++) {
         if (cats[i].cat) {
@@ -265,6 +273,7 @@ static bool call_category_loads(void)
     used -= shift;
 
     // Copy any new +load candidates from the new list to the detached list.
+    //重新分配内存空间 
     new_categories_added = (loadable_categories_used > 0);
     for (i = 0; i < loadable_categories_used; i++) {
         if (used == allocated) {
@@ -334,6 +343,7 @@ static bool call_category_loads(void)
 * Locking: loadMethodLock must be held by the caller 
 *   All other locks must not be held.
 **********************************************************************/
+//Step 4 +load
 void call_load_methods(void)
 {
     static bool loading = NO;
@@ -349,6 +359,7 @@ void call_load_methods(void)
 
     do {
         // 1. Repeatedly call class +loads until there aren't any more
+        //执行重写 load 所有类
         while (loadable_classes_used > 0) {
             call_class_loads();
         }
