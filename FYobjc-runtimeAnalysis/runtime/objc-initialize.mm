@@ -200,6 +200,7 @@ bool _thisThreadIsInitializingClass(Class cls)
 * Record that this thread is currently initializing the given class. 
 * This thread will be allowed to send messages to the class, but 
 *   other threads will have to wait.
+* 初始化成功 向当前类发送 +initialize
 **********************************************************************/
 static void _setThisThreadIsInitializingClass(Class cls)
 {
@@ -285,6 +286,7 @@ static void _finishInitializing(Class cls, Class supercls)
     }
 
     // mark this class as fully +initialized
+    // 标记类完成 initialized 初始化完成
     cls->setInitialized();
     classInitLock.notifyAll();
     _setThisThreadIsNotInitializingClass(cls);
@@ -302,6 +304,7 @@ static void _finishInitializing(Class cls, Class supercls)
         pendingInitializeMap = nil;
     }
 
+    //对前面保存未完成初始化链表遍地设置完成 RW_INITIALIZED 标志
     while (pending) {
         PendingInitialize *next = pending->next;
         if (pending->subclass) _finishInitializing(pending->subclass, cls);
@@ -339,6 +342,8 @@ static void _finishInitializingAfter(Class cls, Class supercls)
     pending->subclass = cls;
     pending->next = (PendingInitialize *)
         NXMapGet(pendingInitializeMap, supercls);
+    //把未完成初始化父类保存在一个子类的链表中
+    //链表是父类来做键来保存
     NXMapInsert(pendingInitializeMap, supercls, pending);
 }
 
@@ -405,7 +410,7 @@ static bool classHasTrivialInitialize(Class cls)
 static void lockAndFinishInitializing(Class cls, Class supercls)
 {
     monitor_locker_t lock(classInitLock);
-    if (!supercls  ||  supercls->isInitialized()) {
+    if (!supercls  ||  supercls->isInitialized()) {//父类完成初始化
         _finishInitializing(cls, supercls);
     } else {
         _finishInitializingAfter(cls, supercls);
@@ -481,6 +486,7 @@ void performForkChildInitialize(Class cls, Class supercls)
 * class_initialize.  Send the '+initialize' message on demand to any
 * uninitialized class. Force initialization of superclasses first.
 **********************************************************************/
+//Step 2 +initialize 
 void _class_initialize(Class cls)
 {
     assert(!cls->isMetaClass());
@@ -490,12 +496,14 @@ void _class_initialize(Class cls)
 
     // Make sure super is done initializing BEFORE beginning to initialize cls.
     // See note about deadlock above.
+    // 1、递归强制在父类调用 initialize
     supercls = cls->superclass;
     if (supercls  &&  !supercls->isInitialized()) {
         _class_initialize(supercls);
     }
     
     // Try to atomically set CLS_INITIALIZING.
+    // 2、在当前设置或者进行ing 中，设置当前元类 RW_INITIALIZING
     {
         monitor_locker_t lock(classInitLock);
         if (!cls->isInitialized() && !cls->isInitializing()) {
@@ -508,6 +516,7 @@ void _class_initialize(Class cls)
         // We successfully set the CLS_INITIALIZING bit. Initialize the class.
         
         // Record that we're initializing this class so we can message it.
+        // 3、设置成功发送消息
         _setThisThreadIsInitializingClass(cls);
 
         if (MultithreadedForkChild) {
@@ -554,6 +563,8 @@ void _class_initialize(Class cls)
 #endif
         {
             // Done initializing.
+            // 4、完成初始化，在父类中执行初始化就设置 RW_INITIALIZED 标志
+            // 如果父类没有初始化完成，就要等到父类完成后在设置当前参数
             lockAndFinishInitializing(cls, supercls);
         }
         return;
@@ -566,6 +577,8 @@ void _class_initialize(Class cls)
         // It's ok if INITIALIZING changes to INITIALIZED while we're here, 
         //   because we safely check for INITIALIZED inside the lock 
         //   before blocking.
+        // 5、当前类的线程正在初始化 直接返回
+        //否则 等待其他的线程执行完成前等待
         if (_thisThreadIsInitializingClass(cls)) {
             return;
         } else if (!MultithreadedForkChild) {
@@ -587,6 +600,7 @@ void _class_initialize(Class cls)
         //   is false. Skip this clause. Then the other thread finishes 
         //   initialization and sets INITIALIZING=no and INITIALIZED=yes. 
         //   Skip the ISINITIALIZING clause. Die horribly.
+        // 6、初始化实现 --> 直接返回
         return;
     }
     
