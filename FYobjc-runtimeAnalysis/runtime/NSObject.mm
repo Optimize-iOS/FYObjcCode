@@ -332,6 +332,8 @@ objc_storeStrong(id *location, id obj)
 enum CrashIfDeallocating {
     DontCrashIfDeallocating = false, DoCrashIfDeallocating = true
 };
+
+///Stepweak 2
 template <HaveOld haveOld, HaveNew haveNew,
           CrashIfDeallocating crashIfDeallocating>
 static id 
@@ -349,6 +351,8 @@ storeWeak(id *location, objc_object *newObj)
     // Order by lock address to prevent lock ordering problems. 
     // Retry if the old value changes underneath us.
  retry:
+    
+    //初始化在原来对应 weak 列表 和新复制对象的列表
     if (haveOld) {
         oldObj = *location;
         oldTable = &SideTables()[oldObj];
@@ -372,6 +376,7 @@ storeWeak(id *location, objc_object *newObj)
     // and the +initialize machinery by ensuring that no 
     // weakly-referenced object has an un-+initialized isa.
     if (haveNew  &&  newObj) {
+        ///通过当前反射类获取 weak 的 class 对象
         Class cls = newObj->getIsa();
         if (cls != previouslyInitializedClass  &&  
             !((objc_class *)cls)->isInitialized()) 
@@ -404,6 +409,7 @@ storeWeak(id *location, objc_object *newObj)
         // weak_register_no_lock returns nil if weak store should be rejected
 
         // Set is-weakly-referenced bit in refcount table.
+        ///对当前的计数表中进行操作
         if (newObj  &&  !newObj->isTaggedPointer()) {
             newObj->setWeaklyReferenced_nolock();
         }
@@ -472,6 +478,8 @@ objc_storeWeakOrNil(id *location, id newObj)
  * @param location Address of __weak ptr. 
  * @param newObj Object ptr. 
  */
+//对于把 Strong 对象赋值给 Weak 的对象时调用的方法实现
+///Stepweak 1
 id
 objc_initWeak(id *location, id newObj)
 {
@@ -508,6 +516,8 @@ objc_initWeakOrNil(id *location, id newObj)
  * 
  * @param location The weak pointer address. 
  */
+//对当前的 weak 对象删除操作 | 就是在改 objc 地址设置 nil 来进行设置
+///StepDestoryweak 1
 void
 objc_destroyWeak(id *location)
 {
@@ -526,6 +536,8 @@ objc_destroyWeak(id *location)
   So we now don't touch the storage until deallocation completes.
 */
 
+//在当前 weak 对象赋值时 也会调用其计数器 在技术列表中来实现 +1
+///StepRetainweak 1
 id
 objc_loadWeakRetained(id *location)
 {
@@ -594,6 +606,9 @@ objc_loadWeakRetained(id *location)
  * 
  * @return The object pointed to by \e location, or \c nil if \e location is \c nil.
  */
+
+//对当前的 weak 对象执行 计数器列表 retain +1，然后在该对象想添加到 autoreleasepool 自动释放池中 
+///
 id
 objc_loadWeak(id *location)
 {

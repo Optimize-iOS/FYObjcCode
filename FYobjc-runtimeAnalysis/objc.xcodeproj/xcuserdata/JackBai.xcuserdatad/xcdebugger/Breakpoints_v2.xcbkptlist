@@ -90,8 +90,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "2312"
             endingLineNumber = "2312"
-            landmarkName = "@implementation NSObject"
-            landmarkType = "3">
+            landmarkName = "+description"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -106,8 +106,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "2322"
             endingLineNumber = "2322"
-            landmarkName = "-retain"
-            landmarkType = "7">
+            landmarkName = "@implementation NSObject"
+            landmarkType = "3">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>
