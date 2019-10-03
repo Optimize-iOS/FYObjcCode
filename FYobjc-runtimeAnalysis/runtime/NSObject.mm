@@ -21,6 +21,73 @@
  * @APPLE_LICENSE_HEADER_END@
  */
 
+/** 在 iOS 5.0 ARC 实现的基础之上怎么实现原理？
+ 
+ **** Strong ****
+ 
+ *（1）alloc/new/cop/mutablecopy
+ id objc = objc_msgSend(NSObject, @selector(alloc));
+ objc_msgSend(objc, @selector(init));
+ objc_release(objc);
+ 
+ * (2) array
+ id objc = objc_msgSend(NSMutableArray, @selector(array));
+ objc_retainAutoreleasedReturnValue(objc);
+ objc_release(objc);
+ 
+ * (3) alloc -> init
+ id objc = objc_msgSend(NSMutableArray, @selector(alloc));
+ objc_msgSend(objc, @selecotor(init));
+ objc_autoreleasedReturnValue(objc);
+ 
+ 
+ **** Weak ****
+ 
+ * (1) id __weak objc1 = objc;
+ id objc1;
+ objc_initWeak(&objc1, objc);
+ objc_destory(&objc1);
+ 
+ 换言之：
+ id objc1;
+ objc_storeWeak(&objc1, objc); //把 objc1 注册到 weak 列表
+ objc_storeWeak(&objc1, 0); //把 objc1 的从 weak 列表删除
+ 
+ 是把 对象的地址信息作为该散列表作为键值，可以实现 一对多 情况。
+ 
+ 
+ 在删除对应的信息过程中，objc_release(objc) 实现的动作：
+ a、objc_release;
+ b、引用计数为 0，就执行对应 dealloc;
+ c、_objc_rootDealloc;
+ d、objc_dispose;
+ e、objc_desturctInstance;
+ f、objc_clear_deallocating;
+ 
+ 在调用 objc_clear_deallocating 之后的调用栈：
+ a、从 weak 列表中获取废弃的地址为键值的记录；
+ b、将包含在记录里面所有的 __weak 修饰的变量地址，设置为 nil；
+ c、然后重 weak 列表中删除该记录；
+ d、从引用计数表中删除该废弃的对象地址为键值记录。
+ 
+ *（2）id __weak objc1 = objc;  NSLog(@"objc:%@", objc1);
+ id objc1;
+ objc_initWeak(&objc1, objc);
+ id temp = objc_loadWeakRetain(&objc1);
+ objc_autorelease(temp);
+ NSLog("%@", temp);
+ objc_destoryWeak(&objc1);
+ 
+ a、objc_loadWeakRetain 函数中获取 __weak 的修饰变量引用的对象且 retain；
+ b、函数将对象注册到 autorelasepool 中
+ 在采用对象时就会对每次引用加入到自动释放 pool 中
+ 
+ 
+ *
+ *
+ *
+ **/
+
 #include "objc-private.h"
 #include "NSObject.h"
 
@@ -1727,6 +1794,7 @@ _objc_rootAllocWithZone(Class cls, malloc_zone_t *zone)
 
 // Call [cls alloc] or [cls allocWithZone:nil], with appropriate 
 // shortcutting optimizations.
+///
 static ALWAYS_INLINE id
 callAlloc(Class cls, bool checkNil, bool allocWithZone=false)
 {
@@ -1762,6 +1830,8 @@ callAlloc(Class cls, bool checkNil, bool allocWithZone=false)
 
 // Base class implementation of +alloc. cls is not nil.
 // Calls [cls allocWithZone:nil].
+/// 在采用 alloc 时来实现对象实例化
+//  allocWithZone == true
 id
 _objc_rootAlloc(Class cls)
 {
@@ -2188,6 +2258,9 @@ void arr_init(void)
 }
 
 - (void)forwardInvocation:(NSInvocation *)invocation {
+    
+    printf(@"method: %@", invocation.selector);
+    
     [self doesNotRecognizeSelector:(invocation ? [invocation selector] : 0)];
 }
 

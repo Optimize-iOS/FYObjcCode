@@ -19,7 +19,7 @@
 
 
 + (void)initialize {
-    NSLog(@"Method: <%p, %s> in class: %@", _cmd, __func__, NSStringFromClass(self));
+    //NSLog(@"Method: <%p, %s> in class: %@", _cmd, __func__, NSStringFromClass(self));
 }
 
 @end
