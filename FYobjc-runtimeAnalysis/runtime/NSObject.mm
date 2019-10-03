@@ -607,7 +607,7 @@ objc_loadWeakRetained(id *location)
  * @return The object pointed to by \e location, or \c nil if \e location is \c nil.
  */
 
-//对当前的 weak 对象执行 计数器列表 retain +1，然后在该对象想添加到 autoreleasepool 自动释放池中 
+//对当前的 weak 对象执行 计数器列表 retain +1，然后在该对象想添加到 autoreleasepool 自动释放池中
 ///
 id
 objc_loadWeak(id *location)
@@ -656,6 +656,7 @@ objc_moveWeak(id *dst, id *src)
     *src = nil;
 }
 
+#mark - Autorelease pool
 
 /***********************************************************************
    Autorelease pool implementation
@@ -734,13 +735,13 @@ class AutoreleasePoolPage
 #else
         PAGE_MAX_SIZE;  // size and alignment, power of 2
 #endif
-    static size_t const COUNT = SIZE / sizeof(id);
+    static size_t const COUNT = SIZE / sizeof(id); //默认是：4k
 
-    magic_t const magic;
+    magic_t const magic;                 //用来校验当前 pool page 完整性
     id *next;
-    pthread_t const thread;
-    AutoreleasePoolPage * const parent;
-    AutoreleasePoolPage *child;
+    pthread_t const thread;              //当前的 pool page 所在线程位置
+    AutoreleasePoolPage * const parent;  //
+    AutoreleasePoolPage *child;          //和 parent 两个指针构成双向链表结构
     uint32_t const depth;
     uint32_t hiwat;
 
@@ -753,14 +754,14 @@ class AutoreleasePoolPage
         return free(p);
     }
 
-    inline void protect() {
+    inline void protect() { //
 #if PROTECT_AUTORELEASEPOOL
         mprotect(this, SIZE, PROT_READ);
         check();
 #endif
     }
 
-    inline void unprotect() {
+    inline void unprotect() { //
 #if PROTECT_AUTORELEASEPOOL
         check();
         mprotect(this, SIZE, PROT_READ | PROT_WRITE);
@@ -812,12 +813,13 @@ class AutoreleasePoolPage
 
     void check(bool die = true) 
     {
+        ///判断当亲 magic 是否完整 或者 当前线程是否当前 thread
         if (!magic.check() || !pthread_equal(thread, pthread_self())) {
             busted(die);
         }
     }
 
-    void fastcheck(bool die = true) 
+    void fastcheck(bool die = true) //检测 page 是否有效
     {
 #if CHECK_AUTORELEASEPOOL
         check(die);
@@ -849,13 +851,17 @@ class AutoreleasePoolPage
         return (next - begin() < (end() - begin()) / 2);
     }
 
+    //pool page 在添加 add
+    ///判断当前 pool page 是否 full --> next == end
+    ///
+    ///
     id *add(id obj)
     {
         assert(!full());
-        unprotect();
+        unprotect();     //设置当前 page 可读可写
         id *ret = next;  // faster than `return next-1` because of aliasing
-        *next++ = obj;
-        protect();
+        *next++ = obj;   // 新加入的 objc 指向下一个对象 --> next 指针后移
+        protect();       //设置当前 page 只读
         return ret;
     }
 
@@ -864,6 +870,9 @@ class AutoreleasePoolPage
         releaseUntil(begin());
     }
 
+    //获取到 Stop 的位置然后删除对应的数据
+    ///
+    ///删除该对象数据直到 stop 位置
     void releaseUntil(id *stop) 
     {
         // Not recursive: we don't want to blow out the stack 
@@ -948,6 +957,7 @@ class AutoreleasePoolPage
         return pageForPointer((uintptr_t)p);
     }
 
+    //根据 p 来获对应 page
     static AutoreleasePoolPage *pageForPointer(uintptr_t p) 
     {
         AutoreleasePoolPage *result;
@@ -975,7 +985,7 @@ class AutoreleasePoolPage
         return EMPTY_POOL_PLACEHOLDER;
     }
 
-    static inline AutoreleasePoolPage *hotPage() 
+    static inline AutoreleasePoolPage *hotPage() //获取当前 Hot page
     {
         AutoreleasePoolPage *result = (AutoreleasePoolPage *)
             tls_get_direct(key);
@@ -984,6 +994,7 @@ class AutoreleasePoolPage
         return result;
     }
 
+    ///把当前的 page 设置为在使用 page
     static inline void setHotPage(AutoreleasePoolPage *page) 
     {
         if (page) page->fastcheck();
@@ -1003,18 +1014,27 @@ class AutoreleasePoolPage
     }
 
 
+    //在正式 page
+    ///获取 pool 里面对应 hot page
+    ///检测当前 page 是否 full --> 添加对用的数据
+    ///
+    ///
     static inline id *autoreleaseFast(id obj)
     {
         AutoreleasePoolPage *page = hotPage();
-        if (page && !page->full()) {
+        if (page && !page->full()) {    //当前 page 不为空 && page 不 full
             return page->add(obj);
-        } else if (page) {
+        } else if (page) {              // page full 但是 page != nil
             return autoreleaseFullPage(obj, page);
-        } else {
+        } else {                        //page == nil 且 page full
             return autoreleaseNoPage(obj);
         }
     }
 
+    //
+    ///遍历当前在 page full 然后遍历 child 找到对应 wei full 的 page
+    ///如果均满就上传一个新的 page
+    ///然后设置为 hot page --> add 对应的 objc
     static __attribute__((noinline))
     id *autoreleaseFullPage(id obj, AutoreleasePoolPage *page)
     {
@@ -1033,6 +1053,9 @@ class AutoreleasePoolPage
         return page->add(obj);
     }
 
+    //当前添加过程中 no page
+    ///创始化 first page 并且设置为 hot page
+    ///把当前 POOL_BOUNDARY 添加到对应的 page 添加到对应 objc
     static __attribute__((noinline))
     id *autoreleaseNoPage(id obj)
     {
@@ -1100,7 +1123,9 @@ public:
         return obj;
     }
 
-
+    //push 添加对应的
+    ///分为 debug 测试每次创建 new page 然后加入 POOL_BOUNDARY
+    ///在正式的快速基于 page 来实现
     static inline void *push() 
     {
         id *dest;
@@ -1139,11 +1164,15 @@ public:
         objc_autoreleasePoolInvalid(token);
     }
     
+    //pop 删除
     static inline void pop(void *token) 
     {
         AutoreleasePoolPage *page;
         id *stop;
 
+        //当前 token == EMPTY_POOL_PLACEHOLDER
+        ///
+        ///
         if (token == (void*)EMPTY_POOL_PLACEHOLDER) {
             // Popping the top-level placeholder pool.
             if (hotPage()) {
@@ -1157,9 +1186,10 @@ public:
             return;
         }
 
+        //获取所在的 page
         page = pageForPointer(token);
         stop = (id *)token;
-        if (*stop != POOL_BOUNDARY) {
+        if (*stop != POOL_BOUNDARY) {//
             if (stop == page->begin()  &&  !page->parent) {
                 // Start of coldest page may correctly not be POOL_BOUNDARY:
                 // 1. top-level pool is popped, leaving the cold page in place
@@ -1173,9 +1203,12 @@ public:
 
         if (PrintPoolHiwat) printHiwat();
 
+        ///释放当前的对象 -->
+        //POOL_BOUNDARY 以此为参照
         page->releaseUntil(stop);
 
         // memory: delete empty children
+        /// 删除对应 child page
         if (DebugPoolAllocation  &&  page->empty()) {
             // special case: delete everything during page-per-pool debugging
             AutoreleasePoolPage *parent = page->parent;
