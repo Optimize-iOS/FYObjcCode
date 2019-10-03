@@ -125,6 +125,7 @@ static id defaultBadAllocHandler(Class cls)
 
 static id(*badAllocHandler)(Class) = &defaultBadAllocHandler;
 
+///StepAlloc 7
 static id callBadAllocHandler(Class cls)
 {
     // fixme add re-entrancy protection in case allocation fails inside handler
@@ -156,6 +157,7 @@ typedef objc::DenseMap<DisguisedPtr<objc_object>,size_t,true> RefcountMap;
 enum HaveOld { DontHaveOld = false, DoHaveOld = true };
 enum HaveNew { DontHaveNew = false, DoHaveNew = true };
 
+///保存 ARC 对象中 计数机制的 table 
 struct SideTable {
     spinlock_t slock;
     RefcountMap refcnts;
@@ -1308,6 +1310,8 @@ objc_object::clearDeallocating_slow()
 
 #endif
 
+//创建 autoreleasepool 对象来保存保存数据
+///Steparray 3.3.2..
 __attribute__((noinline,used))
 id 
 objc_object::rootAutorelease2()
@@ -1653,6 +1657,8 @@ objc_object::sidetable_clearDeallocating()
 
 #if __OBJC2__
 
+//对当前申请的对象计数器 count +1
+///Steparray 3.2
 __attribute__((aligned(16)))
 id 
 objc_retain(id obj)
@@ -1673,6 +1679,7 @@ objc_release(id obj)
 }
 
 
+///Steparray 3.3
 __attribute__((aligned(16)))
 id
 objc_autorelease(id obj)
@@ -1768,7 +1775,7 @@ _objc_rootRelease(id obj)
     obj->rootRelease();
 }
 
-
+///StepAlloc 6
 id
 _objc_rootAllocWithZone(Class cls, malloc_zone_t *zone)
 {
@@ -1794,7 +1801,7 @@ _objc_rootAllocWithZone(Class cls, malloc_zone_t *zone)
 
 // Call [cls alloc] or [cls allocWithZone:nil], with appropriate 
 // shortcutting optimizations.
-///
+///StepAlloc 3
 static ALWAYS_INLINE id
 callAlloc(Class cls, bool checkNil, bool allocWithZone=false)
 {
@@ -1832,6 +1839,7 @@ callAlloc(Class cls, bool checkNil, bool allocWithZone=false)
 // Calls [cls allocWithZone:nil].
 /// 在采用 alloc 时来实现对象实例化
 //  allocWithZone == true
+///StepAlloc 2
 id
 _objc_rootAlloc(Class cls)
 {
@@ -1868,7 +1876,7 @@ _objc_rootFinalize(id obj __unused)
     _objc_fatal("_objc_rootFinalize called with garbage collection off");
 }
 
-
+//StepInit 2
 id
 _objc_rootInit(id obj)
 {
@@ -1941,6 +1949,8 @@ objc_releaseAndReturn(id obj)
 
 // Same as objc_retainAutorelease but suitable for tail-calling 
 // if you don't want to push a frame before this point.
+//
+///Steparray 3
 __attribute__((noinline))
 static id 
 objc_retainAutoreleaseAndReturn(id obj)
@@ -1950,6 +1960,8 @@ objc_retainAutoreleaseAndReturn(id obj)
 
 
 // Prepare a value at +1 for return through a +0 autoreleasing convention.
+///在 Strong [[NSArray alloc] init]
+///StepArrayAlloc 1
 id 
 objc_autoreleaseReturnValue(id obj)
 {
@@ -1959,13 +1971,18 @@ objc_autoreleaseReturnValue(id obj)
 }
 
 // Prepare a value at +0 for return through a +0 autoreleasing convention.
+//
+///在 Strong [NSArray array]
+///Steparray 1
 id 
 objc_retainAutoreleaseReturnValue(id obj)
 {
+    //判断在当前类
     if (prepareOptimizedReturn(ReturnAtPlus0)) return obj;
 
     // not objc_autoreleaseReturnValue(objc_retain(obj)) 
     // because we don't need another optimization attempt
+    /// 把该对象加入到 autoreleasepool 里，并且在此基础上
     return objc_retainAutoreleaseAndReturn(obj);
 }
 
@@ -1987,6 +2004,7 @@ objc_unsafeClaimAutoreleasedReturnValue(id obj)
     return objc_releaseAndReturn(obj);
 }
 
+///Steparray 3.1
 id
 objc_retainAutorelease(id obj)
 {
@@ -2364,11 +2382,13 @@ void arr_init(void)
     return ((id)self)->rootRetainCount();
 }
 
+///StepAlloc 1
 + (id)alloc {
     return _objc_rootAlloc(self);
 }
 
 // Replaced by ObjectAlloc
+///StepAlloc 4
 + (id)allocWithZone:(struct _NSZone *)zone {
     return _objc_rootAllocWithZone(self, (malloc_zone_t *)zone);
 }
@@ -2378,6 +2398,7 @@ void arr_init(void)
     return (id)self;
 }
 
+//StepInit 1
 - (id)init {
     return _objc_rootInit(self);
 }

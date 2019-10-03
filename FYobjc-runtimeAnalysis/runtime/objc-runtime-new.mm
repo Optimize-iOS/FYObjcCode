@@ -6514,7 +6514,7 @@ objc_constructInstance(Class cls, void *bytes)
 * fixme
 * Locking: none
 **********************************************************************/
-
+///StepAlloc 6.1.1 | ///StepAlloc 6.2.1
 static __attribute__((always_inline)) 
 id
 _class_createInstanceFromZone(Class cls, size_t extraBytes, void *zone, 
@@ -6534,7 +6534,7 @@ _class_createInstanceFromZone(Class cls, size_t extraBytes, void *zone,
     if (outAllocatedSize) *outAllocatedSize = size;
 
     id obj;
-    if (!zone  &&  fast) {
+    if (!zone  &&  fast) {//初始空间为 nil & 并且快速创建
         obj = (id)calloc(1, size);
         if (!obj) return nil;
         obj->initInstanceIsa(cls, hasCxxDtor);
@@ -6559,7 +6559,7 @@ _class_createInstanceFromZone(Class cls, size_t extraBytes, void *zone,
     return obj;
 }
 
-
+///StepAlloc 6.1
 id 
 class_createInstance(Class cls, size_t extraBytes)
 {
@@ -6632,6 +6632,7 @@ object_copy(id oldObj, size_t extraBytes)
 * fixme
 * Locking: none
 **********************************************************************/
+///StepAlloc 6.2
 id
 class_createInstanceFromZone(Class cls, size_t extraBytes, void *zone)
 {

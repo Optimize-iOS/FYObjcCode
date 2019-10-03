@@ -90,7 +90,7 @@ objc_object::getIsa()
     }
 }
 
-
+///Steparray 3.2.1 | 3.3.2
 inline bool 
 objc_object::isTaggedPointer() 
 {
@@ -433,6 +433,8 @@ objc_object::rootDealloc()
 
 
 // Equivalent to calling [this retain], with shortcuts if there is no override
+// 对当前的 objc 对象在计数的散列表中 +1
+///Steparray 3.2.2
 inline id 
 objc_object::retain()
 {
@@ -455,6 +457,8 @@ objc_object::retain()
 // handleOverflow=true is the framed slow path including overflow to side table
 // The code is structured this way to prevent duplication.
 
+///Steparray 3.2.2..
+    
 ALWAYS_INLINE id 
 objc_object::rootRetain()
 {
@@ -686,6 +690,10 @@ objc_object::rootRelease(bool performDealloc, bool handleUnderflow)
 
 
 // Equivalent to [this autorelease], with shortcuts if there is no override
+
+    //把当前初始化对象添加到 autoreleasepool
+///Steparray 3.3.2
+    
 inline id 
 objc_object::autorelease()
 {
@@ -697,6 +705,9 @@ objc_object::autorelease()
 
 
 // Base autorelease implementation, ignoring overrides.
+    //判断当前是对象初始化过该对象，在执行列表中存在当前
+    //如果没有执行对应的对象就再次加入 
+///Steparray 3.3.2..
 inline id 
 objc_object::rootAutorelease()
 {
@@ -1039,6 +1050,7 @@ objc_object::rootRetainCount()
 
 # if __x86_64__
 
+///Steparray 2.1
 static ALWAYS_INLINE bool 
 callerAcceptsOptimizedReturn(const void * const ra0)
 {
@@ -1165,6 +1177,8 @@ setReturnDisposition(ReturnDisposition disposition)
 // Try to prepare for optimized return with the given disposition (+0 or +1).
 // Returns true if the optimized path is successful.
 // Otherwise the return value must be retained and/or autoreleased as usual.
+//
+///Steparray 2
 static ALWAYS_INLINE bool 
 prepareOptimizedReturn(ReturnDisposition disposition)
 {
