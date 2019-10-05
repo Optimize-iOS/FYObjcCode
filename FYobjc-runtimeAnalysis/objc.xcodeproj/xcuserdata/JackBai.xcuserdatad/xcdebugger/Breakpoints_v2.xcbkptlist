@@ -90,7 +90,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "2312"
             endingLineNumber = "2312"
-            landmarkName = "-forwardingTargetForSelector:"
+            landmarkName = "+methodSignatureForSelector:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -106,8 +106,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "2322"
             endingLineNumber = "2322"
-            landmarkName = "@implementation NSObject"
-            landmarkType = "3">
+            landmarkName = "+forwardInvocation:"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>
